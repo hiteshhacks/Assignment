@@ -1,8 +1,8 @@
-from langgraph import MessageState
+from langgraph.graph import MessagesState
 from typing import TypedDict
 
 
-class CampusMindState(MessageState):
+class CampusMindState(MessagesState):
     pass
 
 
