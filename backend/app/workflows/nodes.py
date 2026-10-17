@@ -30,20 +30,24 @@ NAME_QUESTION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-CAMPUS_KEYWORDS = (
-    "faculty",
-    "professor",
-    "elective",
-    "prerequisite",
-    "campus notice",
-    "exam timetable",
-    "exam schedule",
-    "syllabus",
-    "course registration",
-    "college notice",
-    "which subject",
-    "which teacher",
-)
+CAMPUS_PATTERNS = [
+    r"\bwho teaches\b",
+    r"\bwhich professor\b",
+    r"\bwhich faculty\b",
+    r"\bwho is the professor\b",
+    r"\bwho handles\b",
+    r"\bfaculty for\b",
+    r"\bavailable electives\b",
+    r"\belectives offered\b",
+    r"\bcampus notice\b",
+    r"\bcollege notice\b",
+    r"\bexam timetable\b",
+    r"\bexam schedule\b",
+    r"\bcourse registration\b",
+    r"\bsubject prerequisites\b",
+    r"\bprerequisites for\b",
+]
+
 
 def route_message (state:CampusMindState) -> dict:
     message = state["messages"]
@@ -77,7 +81,10 @@ def route_message (state:CampusMindState) -> dict:
             "route_reason": "name_recall",
         }
 
-    if any(keyword in normalized for keyword in CAMPUS_KEYWORDS):
+    if any(
+        re.search(pattern, normalized)
+        for pattern in CAMPUS_PATTERNS
+    ):
         return {
             "route": "knowledge",
             "route_reason": "campus_knowledge_query",
@@ -87,6 +94,7 @@ def route_message (state:CampusMindState) -> dict:
         "route": "llm",
         "route_reason": "general_question",
     }
+
 
 def respond_directly(state: CampusMindState) -> dict:
     messages = state["messages"]
