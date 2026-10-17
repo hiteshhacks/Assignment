@@ -1,5 +1,7 @@
 
-from langchain_core.messages import SystemMessage
+from locale import normalize
+import re
+from langchain_core.messages import SystemMessage,HumanMessage, AIMessage
 
 from app.services.llm_service import get_llm
 from app.workflows.state import CampusMindState
@@ -11,6 +13,140 @@ Answer the user's latest question directly.
 Use previous messages to understand context.
 Never repeat the user's message as your answer unless appropriate.
 """
+
+
+GREETING_PATTERN =re.compile( r"^(hi|hello|hey|good morning|good afternoon|good evening)"
+    r"[!,. ]*$",
+    re.IGNORECASE,)
+
+NAME_PATTERN =re.compile(
+     r"\bmy name is\s+([A-Za-z][A-Za-z '-]{0,49})",
+     re.IGNORECASE,
+)
+
+NAME_QUESTION_PATTERN = re.compile(
+    r"\b(what is|what's|tell me)\s+(my name|my name again)\b"
+    r"|\bdo you remember my name\b",
+    re.IGNORECASE,
+)
+
+CAMPUS_KEYWORDS = (
+    "faculty",
+    "professor",
+    "elective",
+    "prerequisite",
+    "campus notice",
+    "exam timetable",
+    "exam schedule",
+    "syllabus",
+    "course registration",
+    "college notice",
+    "which subject",
+    "which teacher",
+)
+
+def route_message (state:CampusMindState) -> dict:
+    message = state["messages"]
+
+    latest_user_message =next(
+        (
+        msg.content
+        for msg in reversed(message)
+        if isinstance(msg,HumanMessage)
+        and isinstance(msg.content , str)
+    ),
+    "",
+    )
+    text = latest_user_message.strip()
+    normalized =text.lower()
+    if GREETING_PATTERN.fullmatch(text):
+        return {
+            "route": "direct",
+            "route_reason": "simple_greeting",
+        }
+
+    if NAME_PATTERN.search(text):
+        return {
+            "route": "direct",
+            "route_reason": "name_introduction",
+        }
+
+    if NAME_QUESTION_PATTERN.search(text):
+        return {
+            "route": "direct",
+            "route_reason": "name_recall",
+        }
+
+    if any(keyword in normalized for keyword in CAMPUS_KEYWORDS):
+        return {
+            "route": "knowledge",
+            "route_reason": "campus_knowledge_query",
+        }
+
+    return {
+        "route": "llm",
+        "route_reason": "general_question",
+    }
+
+def respond_directly(state: CampusMindState) -> dict:
+    messages = state["messages"]
+
+    latest_user_message = next(
+        msg.content.strip()
+        for msg in reversed(messages)
+        if isinstance(msg, HumanMessage)
+        and isinstance(msg.content, str)
+    )
+
+    reason = state["route_reason"]
+
+    if reason == "simple_greeting":
+        reply = (
+            "Hello! I'm CampusMind. "
+            "How can I help you today?"
+        )
+
+    elif reason == "name_introduction":
+        match = NAME_PATTERN.search(latest_user_message)
+        name = match.group(1).strip().rstrip(" .,!") if match else ""
+
+        reply = (
+            f"Nice to meet you, {name}!"
+            if name
+            else "Nice to meet you!"
+        )
+
+    elif reason == "name_recall":
+        name = None
+
+        for msg in reversed(messages):
+            if not isinstance(msg, HumanMessage):
+                continue
+
+            if not isinstance(msg.content, str):
+                continue
+
+            match = NAME_PATTERN.search(msg.content)
+            if match:
+                name = match.group(1).strip().rstrip(" .,!") 
+                break
+
+        reply = (
+            f"Your name is {name}."
+            if name
+            else "I couldn't find your name in this conversation yet."
+        )
+
+    else:
+        reply = "I can help with that. What would you like to know?"
+
+    return {"messages": [AIMessage(content=reply)]}
+
+
+
+    
+
+
 
 
 async def generate_reply(state: CampusMindState) -> dict:
@@ -29,3 +165,13 @@ async def generate_reply(state: CampusMindState) -> dict:
     print("CampusMind LLM response:", response.content)
 
     return {"messages": [response]}
+
+
+def knowledge_placeholder(state: CampusMindState) -> dict:
+    reply = (
+        "This question needs campus-specific information. "
+        "The campus knowledge retrieval system is not connected yet. "
+        "We'll connect it through GraphRAG in the next implementation stage."
+    )
+
+    return {"messages": [AIMessage(content=reply)]}
