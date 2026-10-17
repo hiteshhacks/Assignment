@@ -9,7 +9,7 @@ class ChatRequest(BaseModel):
         max_length=5000,
         description="User message",
     )
-    sessions_id: str | None =  Field(
+    session_id: str | None =  Field(
         default=None,
         description="Conversation Session ID",
     )
