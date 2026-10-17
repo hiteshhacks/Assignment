@@ -19,4 +19,5 @@ class ChatResponse(BaseModel):
     message: str
     reply: str
     status: str = "success"
-    
+
+
