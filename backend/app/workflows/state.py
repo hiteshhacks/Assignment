@@ -1,8 +1,11 @@
 from langgraph.graph import MessagesState
-from typing import TypedDict
+from typing import Literal
+
+Route = Literal["direct", "llm", "knowledge"]
 
 
 class CampusMindState(MessagesState):
-    pass
+    route: Route
+    route_reason :str
 
 
