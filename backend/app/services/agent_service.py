@@ -1,6 +1,8 @@
 
 from uuid import uuid4
 
+from app.workflows.campusmind_graph import campusmind_graph
+
 
 async def process_message(
     message: str,
@@ -9,15 +11,13 @@ async def process_message(
     if session_id is None:
         session_id = str(uuid4())
 
-    reply = (
-        "Welcome to CampusMind! Your message has been received. "
-        "AI reasoning, campus knowledge retrieval, and agentic "
-        "actions will be integrated in upcoming steps."
+    result = await campusmind_graph.ainvoke(
+        {"message": message, "reply": ""}
     )
 
     return {
         "session_id": session_id,
         "message": message,
-        "reply": reply,
+        "reply": result["reply"],
         "status": "success",
     }
