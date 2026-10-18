@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str
 
     QDRANT_URL: str = "http://localhost:6333"
+    HF_TOKEN: str
+    HF_EMBEDDING_MODEL: str = (
+    "sentence-transformers/all-MiniLM-L6-v2"
+)
+    QDRANT_COLLECTION: str = "campusmind_documents"
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -8,3 +8,5 @@ langchain-groq
 langgraph
 neo4j
 qdrant-client
+
+langchain-huggingface
