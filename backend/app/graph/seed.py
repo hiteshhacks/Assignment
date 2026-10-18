@@ -1,116 +1,132 @@
 
-from app.graph.schema import (
-    get_neo4j_driver,
-    initialize_graph_schema,
-)
+from app.graph.schema import get_neo4j_driver, initialize_graph_schema
 
 
-def seed_campus_graph() -> None:
+FACULTY = [
+    {
+        "id": "FAC-POONAM-WANKHEDE",
+        "name": "Poonam Wankhede",
+        "department": "AIML",
+        "subject_id": "SUB-TOC",
+        "subject": "Theory of Computation",
+    },
+    {
+        "id": "FAC-SHRADDHA-VAIDYA",
+        "name": "Shraddha Vaidya",
+        "department": "AIML",
+        "subject_id": "SUB-FOAI",
+        "subject": "Fundamentals of Artificial Intelligence",
+    },
+    {
+        "id": "FAC-PRATIBHA-WAGALE",
+        "name": "Pratibha Wagale",
+        "department": "CSE",
+        "subject_id": "SUB-DAA",
+        "subject": "Design and Analysis of Algorithms",
+    },
+    {
+        "id": "FAC-RENUKA-KADU",
+        "name": "Renuka Kadu",
+        "department": "CSE",
+        "subject_id": "SUB-JAVA",
+        "subject": "Java Programming",
+    },
+    {
+        "id": "FAC-ROSHNI-RATHOD",
+        "name": "Roshni Rathod",
+        "department": "CSE",
+        "subject_id": "SUB-CV",
+        "subject": "Computer Vision",
+    },
+    {
+        "id": "FAC-PRASHANT-GULAXE",
+        "name": "Prashant Gulaxe",
+        "department": "CSE",
+        "subject_id": "SUB-DBMS",
+        "subject": "Database Management Systems",
+    },
+    {
+        "id": "FAC-MILIND-TOTE",
+        "name": "Milind Tote",
+        "department": "AIML",
+        "subject_id": "SUB-DMPT",
+        "subject": "Discrete Mathematics and Probability Theory",
+    },
+]
+
+HODS = [
+    {
+        "id": "FAC-LALIT-DAMAHE",
+        "name": "Lalit Damahe",
+        "departments": ["CSE", "AIML"],
+    }
+]
+
+
+def seed_graph() -> None:
     initialize_graph_schema()
     driver = get_neo4j_driver()
 
-    subjects = [
-        {
-            "id": "SUB-DSA",
-            "name": "Data Structures and Algorithms",
-            "department": "Computer Science",
-        },
-        {
-            "id": "SUB-ML",
-            "name": "Machine Learning",
-            "department": "Artificial Intelligence",
-        },
-        {
-            "id": "SUB-PY",
-            "name": "Python Programming",
-            "department": "Computer Science",
-        },
-    ]
-
-    faculty = [
-        {
-            "id": "FAC-001",
-            "name": "Dr. Asha Sharma",
-            "department": "Artificial Intelligence",
-        },
-        {
-            "id": "FAC-002",
-            "name": "Prof. Rahul Deshmukh",
-            "department": "Computer Science",
-        },
-    ]
-
-    electives = [
-        {
-            "id": "ELEC-AI",
-            "name": "Applied Artificial Intelligence",
-            "description": (
-                "An illustrative elective covering practical AI applications."
-            ),
-        },
-        {
-            "id": "ELEC-DATA",
-            "name": "Data Science Foundations",
-            "description": (
-                "An illustrative elective covering data analysis and modeling."
-            ),
-        },
-    ]
-
     with driver.session() as session:
-        session.run(
-            """
-            UNWIND $subjects AS item
-            MERGE (s:Subject {id: item.id})
-            SET s.name = item.name,
-                s.department = item.department
-            """,
-            subjects=subjects,
-        ).consume()
+        # Create department nodes.
+        for department in ("CSE", "AIML"):
+            session.run(
+                """
+                MERGE (d:Department {id: $id})
+                SET d.name = $name
+                """,
+                id=f"DEPT-{department}",
+                name=department,
+            ).consume()
 
-        session.run(
-            """
-            UNWIND $faculty AS item
-            MERGE (f:Faculty {id: item.id})
-            SET f.name = item.name,
-                f.department = item.department
-            """,
-            faculty=faculty,
-        ).consume()
+        # Create faculty, subject, and TEACHES relationships.
+        for record in FACULTY:
+            session.run(
+                """
+                MERGE (f:Faculty {id: $faculty_id})
+                SET f.name = $faculty_name,
+                    f.department = $department
 
-        session.run(
-            """
-            UNWIND $electives AS item
-            MERGE (e:Elective {id: item.id})
-            SET e.name = item.name,
-                e.description = item.description
-            """,
-            electives=electives,
-        ).consume()
+                MERGE (d:Department {id: $department_id})
+                SET d.name = $department
 
-        session.run(
-            """
-            MATCH (dsa:Subject {id: 'SUB-DSA'})
-            MATCH (ml:Subject {id: 'SUB-ML'})
-            MATCH (python:Subject {id: 'SUB-PY'})
-            MATCH (asha:Faculty {id: 'FAC-001'})
-            MATCH (rahul:Faculty {id: 'FAC-002'})
-            MATCH (ai:Elective {id: 'ELEC-AI'})
-            MATCH (data:Elective {id: 'ELEC-DATA'})
+                MERGE (f)-[:BELONGS_TO]->(d)
 
-            MERGE (dsa)-[:PREREQUISITE_FOR]->(ml)
-            MERGE (python)-[:PREREQUISITE_FOR]->(ml)
+                MERGE (s:Subject {id: $subject_id})
+                SET s.name = $subject_name,
+                    s.department = $department
 
-            MERGE (asha)-[:TEACHES]->(ml)
-            MERGE (rahul)-[:TEACHES]->(dsa)
+                MERGE (f)-[:TEACHES]->(s)
+                """,
+                faculty_id=record["id"],
+                faculty_name=record["name"],
+                department=record["department"],
+                department_id=f"DEPT-{record['department']}",
+                subject_id=record["subject_id"],
+                subject_name=record["subject"],
+            ).consume()
 
-            MERGE (ai)-[:RECOMMENDED_AFTER]->(ml)
-            MERGE (data)-[:RECOMMENDED_AFTER]->(dsa)
-            """
-        ).consume()
+        # Create HOD relationships for both departments.
+        for hod in HODS:
+            for department in hod["departments"]:
+                session.run(
+                    """
+                    MERGE (f:Faculty {id: $faculty_id})
+                    SET f.name = $faculty_name
 
-    print("CampusMind sample graph seeded successfully.")
+                    MERGE (d:Department {id: $department_id})
+                    SET d.name = $department
+
+                    MERGE (f)-[:HEADS]->(d)
+                    """,
+                    faculty_id=hod["id"],
+                    faculty_name=hod["name"],
+                    department_id=f"DEPT-{department}",
+                    department=department,
+                ).consume()
+
+    print("YCCE faculty and subject graph seeded successfully.")
 
 
 if __name__ == "__main__":
-    seed_campus_graph()
+    seed_graph()
