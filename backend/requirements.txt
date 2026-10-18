@@ -11,3 +11,5 @@ qdrant-client
 
 langchain-huggingface
 sentence-transformers
+
+pypdf
