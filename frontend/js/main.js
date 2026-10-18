@@ -264,10 +264,10 @@ function processBackendEvent(event, bubble) {
         thinkingIndicator.classList.add('hidden');
       }
 
-      // Render answer content safely
+      // Render answer content safely using Markdown-it + KaTeX
       if (contentEl) {
         contentEl.classList.remove('hidden');
-        contentEl.innerHTML = renderSafeMarkdown(event.content || '');
+        renderMarkdownInto(event.content || '', contentEl);
       }
       break;
     }
@@ -510,48 +510,198 @@ function escapeHtml(string) {
 }
 
 /**
- * Safely format Markdown text to HTML without XSS risk
+ * Singleton markdown-it parser instance with safe settings & syntax highlighting
+ */
+let mdParserInstance = null;
+
+function getMarkdownParser() {
+  if (mdParserInstance) return mdParserInstance;
+
+  if (typeof window.markdownit !== 'undefined') {
+    mdParserInstance = window.markdownit({
+      html: false, // Disables raw HTML in source markdown for maximum security
+      xhtmlOut: false,
+      breaks: true, // Converts '\n' in paragraphs into <br>
+      langPrefix: 'language-',
+      linkify: true, // Autoconvert URL-like text to links
+      typographer: true,
+      highlight: function (str, lang) {
+        let highlighted = '';
+        const cleanLang = (lang || '').trim().toLowerCase();
+
+        if (cleanLang && typeof hljs !== 'undefined' && hljs.getLanguage(cleanLang)) {
+          try {
+            highlighted = hljs.highlight(str, { language: cleanLang, ignoreIllegals: true }).value;
+          } catch (__) {
+            highlighted = escapeHtml(str);
+          }
+        } else if (typeof hljs !== 'undefined') {
+          try {
+            const auto = hljs.highlightAuto(str);
+            highlighted = auto.value;
+          } catch (__) {
+            highlighted = escapeHtml(str);
+          }
+        } else {
+          highlighted = escapeHtml(str);
+        }
+
+        const displayLang = cleanLang || 'code';
+        return `<div class="code-block-wrapper">` +
+          `<div class="code-block-header">` +
+            `<span class="code-block-lang">${escapeHtml(displayLang)}</span>` +
+            `<button type="button" class="copy-code-btn" onclick="copyCodeBlock(this)" title="Copy code">` +
+              `<span class="material-symbols-outlined text-[14px]">content_copy</span>` +
+              `<span>Copy</span>` +
+            `</button>` +
+          `</div>` +
+          `<pre><code class="hljs language-${escapeHtml(displayLang)}">${highlighted}</code></pre>` +
+        `</div>`;
+      }
+    });
+
+    // Custom renderer rules: wrap tables in horizontal scroll containers
+    const defaultTableOpen = mdParserInstance.renderer.rules.table_open || function(tokens, idx, options, env, self) {
+      return self.renderToken(tokens, idx, options);
+    };
+    const defaultTableClose = mdParserInstance.renderer.rules.table_close || function(tokens, idx, options, env, self) {
+      return self.renderToken(tokens, idx, options);
+    };
+
+    mdParserInstance.renderer.rules.table_open = function (tokens, idx, options, env, self) {
+      return `<div class="markdown-table-wrapper">` + defaultTableOpen(tokens, idx, options, env, self);
+    };
+
+    mdParserInstance.renderer.rules.table_close = function (tokens, idx, options, env, self) {
+      return defaultTableClose(tokens, idx, options, env, self) + `</div>`;
+    };
+
+    // Link security: target="_blank", rel="noopener noreferrer", and neutralize javascript:/data: URLs
+    const defaultLinkOpen = mdParserInstance.renderer.rules.link_open || function(tokens, idx, options, env, self) {
+      return self.renderToken(tokens, idx, options);
+    };
+
+    mdParserInstance.renderer.rules.link_open = function (tokens, idx, options, env, self) {
+      const hrefIndex = tokens[idx].attrIndex('href');
+      if (hrefIndex >= 0) {
+        const href = tokens[idx].attrs[hrefIndex][1] || '';
+        if (/^(?:javascript|vbscript|data):/i.test(href.trim())) {
+          tokens[idx].attrs[hrefIndex][1] = '#';
+        }
+      }
+      tokens[idx].attrSet('target', '_blank');
+      tokens[idx].attrSet('rel', 'noopener noreferrer');
+      return defaultLinkOpen(tokens, idx, options, env, self);
+    };
+  }
+
+  return mdParserInstance;
+}
+
+/**
+ * Safely parse Markdown text and sanitize through DOMPurify
  */
 function renderSafeMarkdown(markdown) {
   if (!markdown) return '';
 
-  let safe = escapeHtml(markdown);
+  const parser = getMarkdownParser();
+  let rawHtml = '';
 
-  // Fenced code blocks ```lang ... ```
-  safe = safe.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function (_, lang, code) {
-    return `<pre class="bg-surface p-3 rounded-lg overflow-x-auto my-2 border border-border"><code class="text-xs font-mono text-accent">${code}</code></pre>`;
-  });
-
-  // Inline code `code`
-  safe = safe.replace(/`([^`]+)`/g, '<code class="bg-surface px-1.5 py-0.5 rounded font-mono text-xs text-accent border border-border/60">$1</code>');
-
-  // Bold
-  safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-white">$1</strong>');
-  safe = safe.replace(/__([^_]+)__/g, '<strong class="font-semibold text-white">$1</strong>');
-
-  // Italic
-  safe = safe.replace(/\*([^*]+)\*/g, '<em class="italic">$1</em>');
-  safe = safe.replace(/_([^_]+)_/g, '<em class="italic">$1</em>');
-
-  // Bullet items
-  safe = safe.replace(/^[\*\-]\s+(.+)$/gm, '<li class="ml-4 list-disc text-text-secondary">$1</li>');
-
-  // Numbered list items
-  safe = safe.replace(/^\d+\.\s+(.+)$/gm, '<li class="ml-4 list-decimal text-text-secondary">$1</li>');
-
-  // Blockquotes
-  safe = safe.replace(/^>\s+(.+)$/gm, '<blockquote>$1</blockquote>');
-
-  // Paragraphs
-  const paragraphs = safe.split(/\n\n+/);
-  return paragraphs.map(p => {
-    p = p.trim();
-    if (!p) return '';
-    if (p.startsWith('<pre') || p.startsWith('<li') || p.startsWith('<blockquote>')) {
-      return p;
+  if (parser) {
+    try {
+      rawHtml = parser.render(markdown);
+    } catch (parseErr) {
+      console.warn('Markdown parsing error, fallback to escaped text:', parseErr);
+      rawHtml = escapeHtml(markdown).replace(/\n/g, '<br/>');
     }
-    return `<p class="mb-2 leading-relaxed">${p.replace(/\n/g, '<br/>')}</p>`;
-  }).join('');
+  } else {
+    rawHtml = escapeHtml(markdown).replace(/\n/g, '<br/>');
+  }
+
+  // Sanitize with DOMPurify
+  if (typeof DOMPurify !== 'undefined') {
+    return DOMPurify.sanitize(rawHtml, {
+      USE_PROFILES: { html: true },
+      ALLOWED_TAGS: [
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr',
+        'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'strong', 'b', 'em', 'i', 's', 'del', 'a',
+        'div', 'span', 'button',
+        // KaTeX math tags
+        'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'annotation', 'annotation-xml'
+      ],
+      ALLOWED_ATTR: [
+        'href', 'title', 'target', 'rel', 'class', 'id', 'onclick', 'type',
+        'aria-hidden', 'encoding', 'style'
+      ],
+      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\/:-]|$))/i,
+    });
+  }
+
+  return rawHtml;
+}
+
+/**
+ * Render sanitized Markdown into a container and execute KaTeX auto-render
+ */
+function renderMarkdownInto(markdown, targetEl) {
+  if (!targetEl) return;
+  const safeHtml = renderSafeMarkdown(markdown);
+  targetEl.innerHTML = safeHtml;
+
+  // Render mathematical notation if KaTeX auto-render is available
+  if (typeof renderMathInElement !== 'undefined') {
+    try {
+      renderMathInElement(targetEl, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false,
+        ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      });
+    } catch (mathErr) {
+      console.warn('KaTeX math render error:', mathErr);
+    }
+  }
+}
+
+/**
+ * Copy code block content to clipboard with visual feedback
+ */
+function copyCodeBlock(button) {
+  const wrapper = button.closest('.code-block-wrapper');
+  if (!wrapper) return;
+  const codeEl = wrapper.querySelector('code');
+  if (!codeEl) return;
+  const text = codeEl.innerText;
+
+  const originalHtml = button.innerHTML;
+  navigator.clipboard.writeText(text).then(() => {
+    button.innerHTML = '<span class="material-symbols-outlined text-[14px] text-success">check</span><span class="text-success font-medium">Copied!</span>';
+    setTimeout(() => {
+      button.innerHTML = originalHtml;
+    }, 2000);
+  }).catch(() => {
+    // Fallback if navigator.clipboard is unavailable
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand('copy');
+      button.innerHTML = '<span class="material-symbols-outlined text-[14px] text-success">check</span><span class="text-success font-medium">Copied!</span>';
+    } catch (e) {
+      console.warn('Clipboard copy fallback error:', e);
+    }
+    document.body.removeChild(textarea);
+    setTimeout(() => {
+      button.innerHTML = originalHtml;
+    }, 2000);
+  });
 }
 
 // Global hotkey: Ctrl+K or Cmd+K to focus input
@@ -569,3 +719,6 @@ window.handleComposerKey = handleComposerKey;
 window.fillPrompt = fillPrompt;
 window.startNewChat = startNewChat;
 window.autoResizeTextarea = autoResizeTextarea;
+window.copyCodeBlock = copyCodeBlock;
+window.renderSafeMarkdown = renderSafeMarkdown;
+window.renderMarkdownInto = renderMarkdownInto;
