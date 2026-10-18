@@ -34,22 +34,58 @@ NAME_QUESTION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+
 CAMPUS_PATTERNS = [
+    # Faculty and courses
     r"\bwho teaches\b",
     r"\bwhich professor\b",
     r"\bwhich faculty\b",
     r"\bwho is the professor\b",
     r"\bwho handles\b",
     r"\bfaculty for\b",
+    r"\bprofessor\b",
+    r"\binstructor\b",
+    r"\bteacher\b",
+
+    # Subjects and academic requirements
     r"\bavailable electives\b",
     r"\belectives offered\b",
-    r"\bcampus notice\b",
-    r"\bcollege notice\b",
+    r"\bprerequisites?\b",
+    r"\bcourse registration\b",
+    r"\bcourse timetable\b",
     r"\bexam timetable\b",
     r"\bexam schedule\b",
-    r"\bcourse registration\b",
-    r"\bsubject prerequisites\b",
-    r"\bprerequisites for\b",
+    r"\bsemester schedule\b",
+    r"\bsyllabus\b",
+    r"\bcredits required\b",
+
+    # Campus announcements
+    r"\bcampus notice\b",
+    r"\bcollege notice\b",
+    r"\bannouncements?\b",
+    r"\bregistration deadline\b",
+    r"\bcollege deadline\b",
+
+    # Campus facilities and services
+    r"\bcafeteria\b",
+    r"\bcanteen\b",
+    r"\bmenu today\b",
+    r"\bdining hall\b",
+    r"\blibrary hours\b",
+    r"\blab availability\b",
+    r"\bcampus facilities\b",
+    r"\bhostel rules\b",
+    r"\bcampus events?\b",
+    r"\bcollege events?\b",
+    r"\bcollege holidays?\b",
+    r"\bcampus holidays?\b",
+    r"\bwho is\b",
+r"\btell me about\b",
+r"\bprofile of\b",
+r"\bbiography of\b",
+r"\bresearch interests\b",
+r"\boffice hours\b",
+r"\bcontact details\b",
 ]
 
 
