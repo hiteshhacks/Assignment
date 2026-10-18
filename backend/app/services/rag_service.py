@@ -3,23 +3,33 @@ from app.services.graph_retrieval import retrieve_graph_context
 from app.services.vector_retrieval import search_documents
 
 
+# Initial threshold; we will tune it based on actual search scores.
+MIN_VECTOR_SCORE = 0.40
+
+
 def retrieve_campus_evidence(query: str) -> dict:
     graph_results = retrieve_graph_context(query)
 
-    vector_results = search_documents(
+    # Retrieve candidates from Qdrant.
+    vector_candidates = search_documents(
         query=query,
         limit=4,
     )
+
+    # Keep only documents sufficiently similar to the query.
+    vector_results = [
+        item
+        for item in vector_candidates
+        if item.get("score") is not None
+        and item["score"] >= MIN_VECTOR_SCORE
+    ]
 
     evidence = {
         "query": query,
         "graph_results": graph_results,
         "document_results": vector_results,
+        "has_evidence": bool(graph_results or vector_results),
     }
-
-    evidence["has_evidence"] = bool(
-        graph_results or vector_results
-    )
 
     return evidence
 
@@ -46,7 +56,7 @@ def format_evidence(evidence: dict) -> str:
             f"Category: {item.get('category')}\n"
             f"Source: {item.get('source')}\n"
             f"Text: {item.get('text')}\n"
-            f"Similarity score: {item.get('score')}"
+            f"Similarity score: {item.get('score'):.4f}"
         )
 
     if not sections:

@@ -1,7 +1,7 @@
 
 from functools import lru_cache
-from uuid import uuid4
-
+import hashlib
+import uuid
 from qdrant_client import QdrantClient, models
 
 from app.core.config import get_settings
@@ -30,7 +30,16 @@ def ensure_collection() -> None:
                 distance=models.Distance.COSINE,
             ),
         )
+def reset_collection() -> None:
+    settings = get_settings()
+    client = get_qdrant_client()
 
+    if client.collection_exists(settings.QDRANT_COLLECTION):
+        client.delete_collection(settings.QDRANT_COLLECTION)
+
+    ensure_collection()
+
+    
 def index_document(document: list[dict]) -> int :
     if not document: 
         return 0
@@ -54,7 +63,21 @@ def index_document(document: list[dict]) -> int :
     for document, vector in zip(document, vectors):
         points.append(
             models.PointStruct(
-                id=str(uuid4()),
+                id=str(
+    uuid.UUID(
+        bytes=hashlib.sha256(
+            (
+                document.get("source", "unknown")
+                + "|"
+                + document.get("title", "")
+                + "|"
+                + document.get("category", "general")
+                + "|"
+                + document["text"].strip()
+            ).encode("utf-8")
+        ).digest()[:16]
+    )
+),
                 vector=vector,
                 payload={
                     "text": document["text"],
