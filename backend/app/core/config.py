@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str
 
     QDRANT_URL: str = "http://localhost:6333"
-    HF_TOKEN: str
+    HF_TOKEN: str | None = None
     HF_EMBEDDING_MODEL: str = (
     "sentence-transformers/all-MiniLM-L6-v2"
 )

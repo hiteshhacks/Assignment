@@ -1,25 +1,29 @@
 
 from functools import lru_cache
-from langchain_huggingface import HuggingFaceEndpointEmbeddings
+
+from langchain_huggingface import HuggingFaceEmbeddings
+
 from app.core.config import get_settings
 
+
 @lru_cache
-def get_embeddings() -> HuggingFaceEndpointEmbeddings :
+def get_embeddings() -> HuggingFaceEmbeddings:
     settings = get_settings()
 
-    return HuggingFaceEndpointEmbeddings(
-        model = settings.HF_EMBEDDING_MODEL,
-        task ="feature-extraction",
-        huggingfacehub_api_token = settings.HF_TOKEN
+    return HuggingFaceEmbeddings(
+        model_name=settings.HF_EMBEDDING_MODEL,
     )
 
-def embed_document(texts :list[str]) -> list[list[float]]:
+
+def embed_document(texts: list[str]) -> list[list[float]]:
     if not texts:
-        return[]
+        return []
     return get_embeddings().embed_documents(texts)
 
-def embed_query(text:str)->list[float]:
+
+def embed_query(text: str) -> list[float]:
     return get_embeddings().embed_query(text)
+
     
 
 
