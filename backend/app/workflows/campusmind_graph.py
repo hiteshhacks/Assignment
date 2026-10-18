@@ -7,6 +7,7 @@ from app.workflows.nodes import (
     answer_with_campus_evidence,
     respond_directly,
     route_message,
+    retrieve_evidence_node
 )
 from app.workflows.state import CampusMindState
 
@@ -21,7 +22,9 @@ def build_campusmind_graph():
     builder.add_node("router", route_message)
     builder.add_node("direct", respond_directly)
     builder.add_node("llm", generate_reply)
+    builder.add_node("retrieve_evidence", retrieve_evidence_node)
     builder.add_node("knowledge", answer_with_campus_evidence)
+    
 
     builder.add_edge(START, "router")
 
@@ -31,10 +34,10 @@ def build_campusmind_graph():
         {
             "direct": "direct",
             "llm": "llm",
-            "knowledge": "knowledge",
+            "knowledge": "retrieve_evidence",
         },
     )
-
+    builder.add_edge("retrieve_evidence", "knowledge")
     builder.add_edge("direct", END)
     builder.add_edge("llm", END)
     builder.add_edge("knowledge", END)

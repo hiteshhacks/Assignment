@@ -217,6 +217,25 @@ async def generate_reply(state: CampusMindState) -> dict:
 
 
 
+def retrieve_evidence_node(state: CampusMindState) -> dict:
+    messages = state["messages"]
+
+    latest_query = next(
+        (
+            msg.content
+            for msg in reversed(messages)
+            if isinstance(msg, HumanMessage)
+            and isinstance(msg.content, str)
+        ),
+        "",
+    )
+
+    evidence = retrieve_campus_evidence(latest_query)
+
+    return {"evidence": evidence}
+
+
+
 async def answer_with_campus_evidence(
     state: CampusMindState,
 ) -> dict:
@@ -232,7 +251,7 @@ async def answer_with_campus_evidence(
         "",
     )
 
-    evidence = retrieve_campus_evidence(latest_query)
+    evidence = state.get("evidence", {})
 
     if not evidence["has_evidence"]:
         return {
