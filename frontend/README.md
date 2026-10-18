@@ -83,3 +83,24 @@ npx serve frontend -p 3000
   - `done`: marks the activity section as completed and enables the sources dropdown.
   - `evidence`: (future payload support) populates real retrieved documents and Neo4j graph relationships.
   - `error`: displays a clean connection/processing error message.
+
+---
+
+## 6. Advanced Markdown Presentation & Security
+
+The assistant response renderer uses an enterprise-grade processing pipeline:
+
+### Pinned Dependencies
+- **`markdown-it@14.1.0`**: Mature CommonMark + GFM parser with `html: false` (disables raw HTML).
+- **`dompurify@3.2.4`**: Strict DOM sanitization blocking XSS vectors, `javascript:` URIs, and dangerous attributes.
+- **`highlight.js@11.9.0`**: Syntax highlighting with `atom-one-dark` theme.
+- **`katex@0.16.11`**: Fast LaTeX mathematical rendering for inline (`$...$`) and block (`$$...$$`) expressions.
+
+### Supported Elements
+- **Headings (`#`, `##`, `###`)**: Clear visual scale, border-bottom on H1, and balanced margins.
+- **Tables**: GFM tables rendered with header badges, hover highlighting, and responsive `.markdown-table-wrapper` for horizontal mobile scrolling.
+- **Fenced Code Blocks**: Contrasting dark background (`#0b0d13`), language indicator badge, and a **Copy** button with clipboard feedback.
+- **Inline Code**: Subtle contrasting background and border (`#171b26`).
+- **Lists**: Nested ordered and unordered lists with proper margins, bullets, and numbers.
+- **Blockquotes**: Left accent border (`#6366f1`) with italicized text.
+- **Security**: Raw `<script>`, `<img onerror=...>`, and `javascript:...` links are neutralized before rendering.
