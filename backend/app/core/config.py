@@ -16,6 +16,11 @@ class Settings(BaseSettings):
 
     GROQ_API_KEY: str
     GROQ_MODEL: str = "openai/gpt-oss-120b"
+    NEO4J_URI: str = "bolt://localhost:7687"
+    NEO4J_USERNAME: str = "neo4j"
+    NEO4J_PASSWORD: str
+
+    QDRANT_URL: str = "http://localhost:6333"
 
     model_config = SettingsConfigDict(
         env_file=".env",
