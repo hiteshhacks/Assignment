@@ -6,6 +6,10 @@ from langchain_core.messages import SystemMessage,HumanMessage, AIMessage
 from app.services.llm_service import get_llm
 from app.workflows.state import CampusMindState
 
+from app.services.rag_service import (
+    format_evidence,
+    retrieve_campus_evidence,
+)
 
 SYSTEM_PROMPT = """
 You are CampusMind, an intelligent campus assistant.
@@ -175,11 +179,62 @@ async def generate_reply(state: CampusMindState) -> dict:
     return {"messages": [response]}
 
 
-def knowledge_placeholder(state: CampusMindState) -> dict:
-    reply = (
-        "This question needs campus-specific information. "
-        "The campus knowledge retrieval system is not connected yet. "
-        "We'll connect it through GraphRAG in the next implementation stage."
+
+async def answer_with_campus_evidence(
+    state: CampusMindState,
+) -> dict:
+    messages = state["messages"]
+
+    latest_query = next(
+        (
+            msg.content
+            for msg in reversed(messages)
+            if isinstance(msg, HumanMessage)
+            and isinstance(msg.content, str)
+        ),
+        "",
     )
 
-    return {"messages": [AIMessage(content=reply)]}
+    evidence = retrieve_campus_evidence(latest_query)
+
+    if not evidence["has_evidence"]:
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "I couldn't find relevant information in the "
+                        "available campus knowledge sources. Please "
+                        "check an official campus source or provide "
+                        "more details."
+                    )
+                )
+            ]
+        }
+
+    context = format_evidence(evidence)
+
+    prompt = SystemMessage(
+        content=(
+            "You are CampusMind's campus knowledge assistant.\n"
+            "Answer the user's question using the retrieved evidence "
+            "below and the conversation history for context.\n"
+            "Do not invent faculty names, course details, "
+            "prerequisites, or campus policies.\n"
+            "If the evidence does not establish a fact, clearly "
+            "state that it could not be verified.\n"
+            "Distinguish graph relationships from document claims.\n"
+            "When useful, cite the document title and source.\n\n"
+            f"RETRIEVED EVIDENCE:\n{context}"
+        )
+    )
+
+    response = await get_llm().ainvoke(
+        [prompt, *messages]
+    )
+
+    if not response.content:
+        raise RuntimeError(
+            "CampusMind could not generate a grounded answer."
+        )
+
+    return {"messages": [response]}

@@ -28,7 +28,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.workflows.nodes import (
     generate_reply,
-    knowledge_placeholder,
+    answer_with_campus_evidence,
     respond_directly,
     route_message,
 )
@@ -45,7 +45,7 @@ def build_campusmind_graph():
     builder.add_node("router", route_message)
     builder.add_node("direct", respond_directly)
     builder.add_node("llm", generate_reply)
-    builder.add_node("knowledge", knowledge_placeholder)
+    builder.add_node("knowledge", answer_with_campus_evidence)
 
     builder.add_edge(START, "router")
 
